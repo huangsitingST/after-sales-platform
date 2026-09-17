@@ -1,0 +1,45 @@
+{
+	"name": "08-enterprise-after-sales-mcp",
+	"version": "1.0.0",
+	"private": true,
+	"type": "module",
+	"engines": {
+		"node": ">=20.19"
+	},
+	"scripts": {
+		"build": "npm run build:web-host && npm run build:mcp-app && npm run build:server",
+		"build:web-host": "vite build --config vite.web-host.config.js",
+		"build:mcp-app": "vite build --config vite.mcp-app.config.js",
+		"build:server": "tsc -p tsconfig.server.json",
+		"preflight": "node scripts/check-node.mjs",
+		"server": "npm run preflight && node dist-server/main.js",
+		"server:dev": "npm run preflight && tsx --tsconfig tsconfig.server.json src/server/main.ts",
+		"verify": "npm run preflight && tsx --tsconfig tsconfig.server.json src/server/testing/verify-client.ts",
+		"typecheck": "vue-tsc -p tsconfig.frontend.json --noEmit && tsc -p tsconfig.server.json --noEmit"
+	},
+	"dependencies": {
+		"@modelcontextprotocol/client": "2.0.0-beta.4",
+		"@modelcontextprotocol/ext-apps": "1.7.4",
+		"@modelcontextprotocol/node": "2.0.0-beta.4",
+		"@modelcontextprotocol/server": "2.0.0-beta.4",
+		"@nestjs/common": "11.2.5",
+		"@nestjs/core": "11.2.5",
+		"@nestjs/platform-express": "11.2.5",
+		"dotenv": "17.2.3",
+		"express": "5.2.1",
+		"reflect-metadata": "0.2.2",
+		"rxjs": "7.8.2",
+		"vue": "3.5.43",
+		"zod": "4.4.3"
+	},
+	"devDependencies": {
+		"@types/express": "5.0.6",
+		"@types/node": "^22.20.3",
+		"@vitejs/plugin-vue": "6.0.9",
+		"tsx": "4.23.13",
+		"typescript": "5.9.3",
+		"vite": "7.3.6",
+		"vite-plugin-singlefile": "2.3.0",
+		"vue-tsc": "3.3.11"
+	}
+}
