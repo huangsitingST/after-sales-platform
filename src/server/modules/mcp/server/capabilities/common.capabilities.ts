@@ -90,6 +90,13 @@ export function registerCommonCapabilities(
 			)
 	)
 
+	// 提交退款申请：写操作（readOnlyHint: false，destructiveHint: true），
+	// 通过调用方传入的 idempotencyKey 保证同一请求不会重复创建退款单。
+	//
+	// 采用「两段式确认」交互（Human-in-the-loop）：
+	// 1. 首次调用：幂等检查 → 退款预检 → 预检通过后通过 inputRequired 向用户弹出确认卡片，
+	//    此时服务端不会落库任何退款数据；
+	// 2. 用户确认后携带 requestState 再次调用：校验确认凭证与本次参数一致 → 真正创建退款单。
 	server.registerTool(
 		'submit_refund_request',
 		{
@@ -117,12 +124,17 @@ export function registerCommonCapabilities(
 			},
 			context: any
 		) => {
+			// 第一步：幂等检查。相同幂等键已存在退款单时直接返回原单据，
+			// 避免网络重试等场景下重复创建。
 			const existingRefund = afterSales.getRefundByIdempotencyKey(
 				principal,
 				args.idempotencyKey
 			)
+			console.log('1----existingRefund', existingRefund)
 
 			if (existingRefund) {
+				// duplicated: true 告知调用方本次请求命中了幂等去重，
+				// refundRequest 为首轮调用时已创建的退款申请。
 				return jsonResult({
 					ok: true,
 					duplicated: true,
@@ -130,33 +142,69 @@ export function registerCommonCapabilities(
 				})
 			}
 
+			// 订单级去重：相同订单已存在退款单时拒绝再次创建，
+			// 防止用不同幂等键绕过 idempotencyKey 级幂等。
+			const refundForOrder = afterSales.getRefundByOrderId(
+				principal,
+				args.orderId
+			)
+
+			if (refundForOrder) {
+				return jsonResult(
+					{
+						ok: false,
+						error: {
+							code: 'ORDER_ALREADY_REFUNDED',
+							message: `订单 ${args.orderId} 已存在退款单 ${refundForOrder.refundId}`
+						}
+					},
+					true
+				)
+			}
+
+			// 读取上一轮挂起的请求状态（确认回调时由客户端回传），
+			// 以及用户针对 'confirm-refund' 确认卡片提交的响应。
 			const previousState = context.mcpReq.requestState()
+			console.log('2----previousState', previousState)
 			const response = inputResponse(
 				context.mcpReq.inputResponses,
 				'confirm-refund'
 			)
+			console.log('3----response', response)
 
+			// 用户在确认卡片上选择拒绝/取消（非 accept），终止本次提交流程。
 			if (response.kind === 'elicit' && response.action !== 'accept') {
 				return cancelledResult('用户取消了退款提交')
 			}
 
+			// 按 confirmationResponseSchema（{ confirm: boolean }）解析用户确认内容。
+			// 首次调用时尚无用户响应，confirmation 为 undefined。
 			const confirmation = acceptedContent(
 				context.mcpReq.inputResponses,
 				'confirm-refund',
 				confirmationResponseSchema
 			)
+			console.log('4----confirmation', confirmation)
 
 			if (!confirmation?.confirm) {
+				// 第二段尚未完成（首次调用）：先执行退款预检，
+				// 仅做退款资格与人工审核判断，不会创建退款申请。
 				const preview = afterSales.previewRefund(
 					principal,
 					args.orderId,
 					args.reason
 				)
+				console.log('5----preview', preview)
 
+				// 预检不通过（业务异常或订单不符合退款资格），直接返回预检结果，
+				// 不再向用户弹出确认卡片。
 				if (!preview.ok || !preview.preview.eligible) {
 					return businessResult(preview)
 				}
 
+				// 预检通过：把操作类型与本次参数铸造成签名加密的 requestState
+				// （含 5 分钟 TTL，并绑定调用方法与客户端身份），
+				// 作为确认回调时校验「确认的是同一笔请求」的凭证。
 				const requestState = await requestStateCodec.mint(
 					{
 						operation: 'submit_refund_request',
@@ -164,7 +212,10 @@ export function registerCommonCapabilities(
 					},
 					context
 				)
+				console.log('6----requestState', requestState)
 
+				// 返回 inputRequired 暂停工具执行，要求客户端弹出确认卡片（elicit），
+				// 向用户展示退款金额并收集 { confirm: boolean }。
 				return inputRequired({
 					requestState,
 					inputRequests: {
@@ -184,11 +235,14 @@ export function registerCommonCapabilities(
 				})
 			}
 
+			// 第二段：用户已确认。校验回传的 requestState 与当前参数完全一致，
+			// 防止把某笔请求的确认凭证挪用到其他订单或其他幂等键的请求上。
 			if (
 				previousState?.operation !== 'submit_refund_request' ||
 				previousState.orderId !== args.orderId ||
 				previousState.idempotencyKey !== args.idempotencyKey
 			) {
+				// jsonResult 第二个参数为 true，表示该结果是工具错误（isError）。
 				return jsonResult(
 					{
 						ok: false,
@@ -201,6 +255,8 @@ export function registerCommonCapabilities(
 				)
 			}
 
+			// 幂等、用户确认、状态一致性校验全部通过，正式创建退款申请。
+			console.log('7----args', args)
 			return businessResult(
 				afterSales.submitRefund(principal, args)
 			)

@@ -3,9 +3,7 @@ node_modules/
 .pnpm-store/
 
 # Build outputs
-dist/
-dist-server/
-dist-web-host/
+dist*/
 *.tsbuildinfo
 
 # Environment variables
@@ -26,6 +24,7 @@ pnpm-debug.log*
 .idea/
 .vscode/*
 !.vscode/extensions.json
+!.vscode/settings.json
 *.swp
 *.swo
 

@@ -214,7 +214,7 @@ export class AfterSalesService {
 	}> {
 		const idempotencyId = `${principal.tenantId}:${idempotencyKey}`
 		const existing = refundRequests.get(idempotencyId)
-
+		console.log('existing', existing, refundRequests.toString())
 		if (existing) {
 			return {
 				ok: true,
@@ -267,6 +267,22 @@ export class AfterSalesService {
 		)
 
 		return refundRequest ? { ...refundRequest } : null
+	}
+
+	getRefundByOrderId(
+		principal: Principal,
+		orderId: string
+	): RefundRequest | null {
+		for (const refund of refundRequests.values()) {
+			console.log('refund', refund)
+			if (
+				refund.tenantId === principal.tenantId &&
+				refund.orderId === orderId
+			) {
+				return { ...refund }
+			}
+		}
+		return null
 	}
 
 	startBatchReview(

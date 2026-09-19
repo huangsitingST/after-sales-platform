@@ -1,7 +1,5 @@
-export type IdentityToken =
-	| 'token-blue-service'
-	| 'token-blue-finance'
-	| 'token-star-service'
+export type IdentityToken = "token-blue-service" | "token-blue-finance";
+// | 'token-star-service'
 
 export interface RuntimeConfig {
 	sandboxUrl: string

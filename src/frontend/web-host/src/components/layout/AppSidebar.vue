@@ -29,10 +29,10 @@ const identities: Array<{ value: IdentityToken; label: string }> = [
 		value: 'token-blue-finance',
 		label: '蓝鲸科技 · 财务小林'
 	},
-	{
-		value: 'token-star-service',
-		label: '星河零售 · 客服小李'
-	}
+	// {
+	// 	value: 'token-star-service',
+	// 	label: '星河零售 · 客服小李'
+	// }
 ]
 </script>
 
@@ -48,59 +48,36 @@ const identities: Array<{ value: IdentityToken; label: string }> = [
 
 		<section class="side-section identity-panel">
 			<label for="identity">当前演示身份</label>
-			<select
-				id="identity"
-				v-model="identity"
-				:disabled="disabled"
-			>
-				<option
-					v-for="item in identities"
-					:key="item.value"
-					:value="item.value"
-				>
+			<select id="identity" v-model="identity" :disabled="disabled">
+				<option v-for="item in identities" :key="item.value" :value="item.value">
 					{{ item.label }}
 				</option>
 			</select>
 			<div class="connection-row">
-				<span
-					class="connection-dot"
-					:class="connection.status"
-				/>
+				<span class="connection-dot" :class="connection.status" />
 				<span>{{ connection.text }}</span>
 			</div>
 		</section>
 
 		<section class="side-section">
 			<p class="side-label">快速演示</p>
-			<button
-				class="prompt-button"
-				:disabled="disabled"
-				@click="emit('prompt', '订单 A1024 可以退款吗？')"
-			>
+			<button class="prompt-button" :disabled="disabled" @click="emit('prompt', '订单 A1024 可以退款吗？')">
 				<span>01</span>退款资格预审
 			</button>
-			<button
-				class="prompt-button"
-				:disabled="disabled"
-				@click="emit('prompt', '它现在的物流到哪里了？')"
-			>
+			<button class="prompt-button" :disabled="disabled" @click="emit('prompt', '它现在的物流到哪里了？')">
 				<span>02</span>连续对话与物流
 			</button>
-				<button
-					class="prompt-button app-demo-button"
-					:disabled="disabled"
-					@click="emit('appDemo')"
-				>
-					<span>03</span>批量审核报告演示
-				</button>
+			<button class="prompt-button app-demo-button" :disabled="disabled" @click="emit('appDemo')">
+				<span>03</span>批量审核报告演示
+			</button>
 		</section>
 
-			<section class="side-section capability-panel">
-				<p class="side-label">当前能力</p>
-				<div><span>能力数量</span><strong>{{ capabilityCount }}</strong></div>
-				<div><span>Model</span><strong>{{ modelName }}</strong></div>
-				<div><span>执行位置</span><strong>服务端</strong></div>
-			</section>
+		<section class="side-section capability-panel">
+			<p class="side-label">当前能力</p>
+			<div><span>能力数量</span><strong>{{ capabilityCount }}</strong></div>
+			<div><span>Model</span><strong>{{ modelName }}</strong></div>
+			<div><span>执行位置</span><strong>服务端</strong></div>
+		</section>
 	</aside>
 </template>
 

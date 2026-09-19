@@ -19,7 +19,7 @@ import type {
 const identityLabels: Record<IdentityToken, string> = {
 	'token-blue-service': '蓝鲸科技客服',
 	'token-blue-finance': '蓝鲸科技财务',
-	'token-star-service': '星河零售客服'
+	// 'token-star-service': '星河零售客服'
 }
 
 function createId() {
