@@ -6,6 +6,10 @@ export interface AuthenticationResult {
 }
 
 export interface AuthServiceContract {
-	authenticate(authorizationHeader?: string): AuthenticationResult | null
-	principalFromAuthInfo(authInfo?: McpAuthInfo): Principal | undefined
+	authenticate(
+		authorizationHeader?: string
+	): Promise<AuthenticationResult | null>
+	principalFromAuthInfo(
+		authInfo?: McpAuthInfo
+	): Promise<Principal | undefined>
 }

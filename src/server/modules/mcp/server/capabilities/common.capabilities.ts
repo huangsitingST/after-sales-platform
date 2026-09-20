@@ -33,7 +33,7 @@ export function registerCommonCapabilities(
 			}
 		},
 		async ({ orderId }: { orderId: string }) =>
-			businessResult(afterSales.getOrder(principal, orderId))
+			businessResult(await afterSales.getOrder(principal, orderId))
 	)
 
 	server.registerTool(
@@ -50,7 +50,9 @@ export function registerCommonCapabilities(
 			}
 		},
 		async ({ orderId }: { orderId: string }) =>
-			businessResult(afterSales.getLogistics(principal, orderId))
+			businessResult(
+				await afterSales.getLogistics(principal, orderId)
+			)
 	)
 
 	server.registerTool(
@@ -67,7 +69,9 @@ export function registerCommonCapabilities(
 			}
 		},
 		async ({ query }: { query: string }) =>
-			businessResult(afterSales.searchPolicies(principal, query))
+			businessResult(
+				await afterSales.searchPolicies(principal, query)
+			)
 	)
 
 	server.registerTool(
@@ -86,7 +90,7 @@ export function registerCommonCapabilities(
 		},
 		async ({ orderId, reason }: { orderId: string; reason: string }) =>
 			businessResult(
-				afterSales.previewRefund(principal, orderId, reason)
+				await afterSales.previewRefund(principal, orderId, reason)
 			)
 	)
 
@@ -126,10 +130,11 @@ export function registerCommonCapabilities(
 		) => {
 			// 第一步：幂等检查。相同幂等键已存在退款单时直接返回原单据，
 			// 避免网络重试等场景下重复创建。
-			const existingRefund = afterSales.getRefundByIdempotencyKey(
-				principal,
-				args.idempotencyKey
-			)
+			const existingRefund =
+				await afterSales.getRefundByIdempotencyKey(
+					principal,
+					args.idempotencyKey
+				)
 			console.log('1----existingRefund', existingRefund)
 
 			if (existingRefund) {
@@ -144,7 +149,7 @@ export function registerCommonCapabilities(
 
 			// 订单级去重：相同订单已存在退款单时拒绝再次创建，
 			// 防止用不同幂等键绕过 idempotencyKey 级幂等。
-			const refundForOrder = afterSales.getRefundByOrderId(
+			const refundForOrder = await afterSales.getRefundByOrderId(
 				principal,
 				args.orderId
 			)
@@ -189,7 +194,7 @@ export function registerCommonCapabilities(
 			if (!confirmation?.confirm) {
 				// 第二段尚未完成（首次调用）：先执行退款预检，
 				// 仅做退款资格与人工审核判断，不会创建退款申请。
-				const preview = afterSales.previewRefund(
+				const preview = await afterSales.previewRefund(
 					principal,
 					args.orderId,
 					args.reason
@@ -258,7 +263,7 @@ export function registerCommonCapabilities(
 			// 幂等、用户确认、状态一致性校验全部通过，正式创建退款申请。
 			console.log('7----args', args)
 			return businessResult(
-				afterSales.submitRefund(principal, args)
+				await afterSales.submitRefund(principal, args)
 			)
 		}
 	)
@@ -272,7 +277,10 @@ export function registerCommonCapabilities(
 			mimeType: 'text/markdown'
 		},
 		async (uri: URL) => {
-			const result = afterSales.getPolicy(principal, 'refund-policy')
+			const result = await afterSales.getPolicy(
+				principal,
+				'refund-policy'
+			)
 
 			return {
 				contents: [

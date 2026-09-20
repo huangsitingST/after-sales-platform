@@ -15,7 +15,9 @@ export class McpTransportController {
 
 	@All()
 	async handle(@Req() request: Request, @Res() response: Response) {
-		const auth = this.auth.authenticate(request.headers.authorization)
+		const auth = await this.auth.authenticate(
+			request.headers.authorization
+		)
 
 		if (!auth) {
 			response.status(401).json({

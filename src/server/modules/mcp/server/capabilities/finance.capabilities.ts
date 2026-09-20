@@ -92,7 +92,7 @@ export function registerFinanceCapabilities(
 			}
 
 			return businessResult(
-				afterSales.startBatchReview(principal, orderIds)
+				await afterSales.startBatchReview(principal, orderIds)
 			)
 		}
 	)
@@ -107,7 +107,7 @@ export function registerFinanceCapabilities(
 		},
 		async ({ jobId }: { jobId: string }) =>
 			businessResult(
-				afterSales.getJobSnapshot(principal, jobId)
+				await afterSales.getJobSnapshot(principal, jobId)
 			) as never
 	)
 
@@ -120,7 +120,9 @@ export function registerFinanceCapabilities(
 			annotations: { readOnlyHint: false, destructiveHint: true }
 		},
 		async ({ jobId }: { jobId: string }) =>
-			businessResult(afterSales.cancelBatchReview(principal, jobId))
+			businessResult(
+				await afterSales.cancelBatchReview(principal, jobId)
+			)
 	)
 
 	server.registerResource(
@@ -137,7 +139,7 @@ export function registerFinanceCapabilities(
 					uri: uri.href,
 					mimeType: 'application/json',
 					text: JSON.stringify(
-						afterSales.getAuditLogs(principal).slice(-20),
+						(await afterSales.getAuditLogs(principal)).slice(-20),
 						null,
 						2
 					)
@@ -158,7 +160,7 @@ export function registerFinanceCapabilities(
 		},
 		async ({ jobId }: { jobId: string }) =>
 			businessResult(
-				afterSales.getJobSnapshot(principal, jobId)
+				await afterSales.getJobSnapshot(principal, jobId)
 			) as never
 	)
 

@@ -1,9 +1,10 @@
 import { randomUUID } from 'node:crypto'
 
-import { Injectable } from '@nestjs/common'
+import { Inject, Injectable } from '@nestjs/common'
+import { MongoServerError } from 'mongodb'
 
+import { DatabaseService } from '../database/database.service.js'
 import type { Principal } from '../mcp/contracts/shared.types.js'
-import { logistics, orders, policies } from './data.js'
 
 interface BusinessError {
 	ok: false
@@ -14,6 +15,70 @@ interface BusinessError {
 }
 
 type BusinessResult<T> = ({ ok: true } & T) | BusinessError
+
+interface OrderDocument {
+	_id: string
+	tenantId: string
+	orderId: string
+	productName: string
+	category: 'normal' | 'fresh'
+	amount: number
+	status: 'paid' | 'shipped' | 'delivered' | 'closed'
+	signedDays: number
+	customerName: string
+}
+
+interface LogisticsDocument {
+	_id: string
+	tenantId: string
+	orderId: string
+	company: string
+	trackingNo: string
+	events: Array<{
+		time: string
+		message: string
+	}>
+}
+
+interface PolicyDocument {
+	_id: string
+	tenantId: string
+	code: string
+	title: string
+	content: string
+}
+
+interface RefundRequestDocument {
+	_id: string
+	idempotencyId: string
+	tenantId: string
+	orderId: string
+	amount: number
+	reason: string
+	status: 'manual_review' | 'approved'
+	createdBy: string
+	createdAt: Date
+}
+
+interface ReviewJobDocument {
+	_id: string
+	tenantId: string
+	orderIds: string[]
+	status: 'working' | 'completed' | 'cancelled'
+	createdBy: string
+	createdAt: Date
+	cancelledAt: Date | null
+}
+
+interface AuditLogDocument {
+	_id: string
+	tenantId: string
+	userId: string
+	action: string
+	targetId: string
+	detail: Record<string, unknown>
+	createdAt: Date
+}
 
 interface RefundRequest {
 	refundId: string
@@ -26,16 +91,6 @@ interface RefundRequest {
 	createdAt: string
 }
 
-interface ReviewJob {
-	jobId: string
-	tenantId: string
-	orderIds: string[]
-	status: 'working'
-	createdBy: string
-	createdAt: number
-	cancelledAt: number | null
-}
-
 interface AuditLog {
 	auditId: string
 	tenantId: string
@@ -46,122 +101,166 @@ interface AuditLog {
 	createdAt: string
 }
 
-const refundRequests = new Map<string, RefundRequest>()
-const reviewJobs = new Map<string, ReviewJob>()
-const auditLogs: AuditLog[] = []
+type Order = Omit<OrderDocument, '_id'>
+type Logistics = Omit<LogisticsDocument, '_id'>
+type Policy = Omit<PolicyDocument, '_id'>
 
 function businessError(code: string, message: string): BusinessError {
 	return { ok: false, error: { code, message } }
 }
 
-function appendAudit(
-	principal: Principal,
-	action: string,
-	targetId: string,
-	detail: Record<string, unknown> = {}
-) {
-	auditLogs.push({
-		auditId: randomUUID(),
-		tenantId: principal.tenantId,
-		userId: principal.userId,
-		action,
-		targetId,
-		detail,
-		createdAt: new Date().toISOString()
-	})
+function toOrder(document: OrderDocument): Order {
+	const { _id: _ignored, ...order } = document
+	return order
+}
+
+function toLogistics(document: LogisticsDocument): Logistics {
+	const { _id: _ignored, ...logistics } = document
+	return logistics
+}
+
+function toPolicy(document: PolicyDocument): Policy {
+	const { _id: _ignored, ...policy } = document
+	return policy
+}
+
+function toRefundRequest(document: RefundRequestDocument): RefundRequest {
+	return {
+		refundId: document._id,
+		tenantId: document.tenantId,
+		orderId: document.orderId,
+		amount: document.amount,
+		reason: document.reason,
+		status: document.status,
+		createdBy: document.createdBy,
+		createdAt: document.createdAt.toISOString()
+	}
+}
+
+function toAuditLog(document: AuditLogDocument): AuditLog {
+	return {
+		auditId: document._id,
+		tenantId: document.tenantId,
+		userId: document.userId,
+		action: document.action,
+		targetId: document.targetId,
+		detail: document.detail,
+		createdAt: document.createdAt.toISOString()
+	}
 }
 
 @Injectable()
 export class AfterSalesService {
-	getOrder(
+	constructor(
+		@Inject(DatabaseService)
+		private readonly database: DatabaseService
+	) {}
+
+	async getOrder(
 		principal: Principal,
 		orderId: string
-	): BusinessResult<{ order: (typeof orders)[number] }> {
-		const order = orders.find(
-			(item) =>
-				item.tenantId === principal.tenantId && item.orderId === orderId
-		)
+	): Promise<BusinessResult<{ order: Order }>> {
+		const document = await this.database.db
+			.collection<OrderDocument>('orders')
+			.findOne({
+				tenantId: principal.tenantId,
+				orderId
+			})
 
-		return order
-			? { ok: true, order: { ...order } }
+		return document
+			? { ok: true, order: toOrder(document) }
 			: businessError('ORDER_NOT_FOUND', `没有找到订单 ${orderId}`)
 	}
 
-	getLogistics(
+	async getLogistics(
 		principal: Principal,
 		orderId: string
-	): BusinessResult<{ logistics: (typeof logistics)[number] }> {
-		const orderResult = this.getOrder(principal, orderId)
+	): Promise<BusinessResult<{ logistics: Logistics }>> {
+		const orderResult = await this.getOrder(principal, orderId)
 		if (!orderResult.ok) return orderResult
 
-		const trace = logistics.find(
-			(item) =>
-				item.tenantId === principal.tenantId && item.orderId === orderId
-		)
+		const document = await this.database.db
+			.collection<LogisticsDocument>('logistics')
+			.findOne({
+				tenantId: principal.tenantId,
+				orderId
+			})
 
-		return trace
-			? { ok: true, logistics: structuredClone(trace) }
+		return document
+			? { ok: true, logistics: toLogistics(document) }
 			: businessError(
 					'LOGISTICS_NOT_FOUND',
 					`订单 ${orderId} 暂无物流信息`
 			  )
 	}
 
-	getPolicy(
+	async getPolicy(
 		principal: Principal,
 		code: string
-	): BusinessResult<{ policy: (typeof policies)[number] }> {
-		const policy = policies.find(
-			(item) =>
-				item.tenantId === principal.tenantId && item.code === code
-		)
+	): Promise<BusinessResult<{ policy: Policy }>> {
+		const document = await this.database.db
+			.collection<PolicyDocument>('policies')
+			.findOne({
+				tenantId: principal.tenantId,
+				code
+			})
 
-		return policy
-			? { ok: true, policy: { ...policy } }
+		return document
+			? { ok: true, policy: toPolicy(document) }
 			: businessError('POLICY_NOT_FOUND', `没有找到规则 ${code}`)
 	}
 
-	searchPolicies(
+	async searchPolicies(
 		principal: Principal,
 		query: string
-	): BusinessResult<{ results: Array<(typeof policies)[number] & { score: number }> }> {
+	): Promise<
+		BusinessResult<{
+			results: Array<Policy & { score: number }>
+		}>
+	> {
 		const words = query
 			.toLowerCase()
 			.split(/[\s，。？！、]+/)
 			.filter(Boolean)
+		const documents = await this.database.db
+			.collection<PolicyDocument>('policies')
+			.find({ tenantId: principal.tenantId })
+			.toArray()
 
-		const results = policies
-			.filter((item) => item.tenantId === principal.tenantId)
-			.map((item) => ({
-				...item,
+		const results = documents
+			.map(toPolicy)
+			.map((policy) => ({
+				...policy,
 				score: words.filter((word) =>
-					`${item.title}\n${item.content}`
+					`${policy.title}\n${policy.content}`
 						.toLowerCase()
 						.includes(word)
 				).length
 			}))
-			.filter((item) => item.score > 0)
+			.filter((policy) => policy.score > 0)
 			.sort((a, b) => b.score - a.score)
 
 		return { ok: true, results }
 	}
 
-	previewRefund(
+	async previewRefund(
 		principal: Principal,
 		orderId: string,
 		reason: string
-	): BusinessResult<{
-		preview: {
-			orderId: string
-			productName: string
-			refundAmount: number
-			reason: string
-			eligible: boolean
-			manualReview: boolean
-			conclusion: string
-		}
-	}> {
-		const orderResult = this.getOrder(principal, orderId)
+	): Promise<
+		BusinessResult<{
+			preview: {
+				orderId: string
+				productName: string
+				refundAmount: number
+				reason: string
+				eligible: boolean
+				manualReview: boolean
+				conclusion: string
+			}
+		}>
+	> {
+		const orderResult = await this.getOrder(principal, orderId)
 		if (!orderResult.ok) return orderResult
 
 		const { order } = orderResult
@@ -197,7 +296,7 @@ export class AfterSalesService {
 		}
 	}
 
-	submitRefund(
+	async submitRefund(
 		principal: Principal,
 		{
 			orderId,
@@ -208,22 +307,30 @@ export class AfterSalesService {
 			reason: string
 			idempotencyKey: string
 		}
-	): BusinessResult<{
-		duplicated: boolean
-		refundRequest: RefundRequest
-	}> {
+	): Promise<
+		BusinessResult<{
+			duplicated: boolean
+			refundRequest: RefundRequest
+		}>
+	> {
 		const idempotencyId = `${principal.tenantId}:${idempotencyKey}`
-		const existing = refundRequests.get(idempotencyId)
-		console.log('existing', existing, refundRequests.toString())
+		const existing = await this.getRefundByIdempotencyKey(
+			principal,
+			idempotencyKey
+		)
 		if (existing) {
 			return {
 				ok: true,
 				duplicated: true,
-				refundRequest: { ...existing }
+				refundRequest: existing
 			}
 		}
 
-		const previewResult = this.previewRefund(principal, orderId, reason)
+		const previewResult = await this.previewRefund(
+			principal,
+			orderId,
+			reason
+		)
 		if (!previewResult.ok) return previewResult
 		if (!previewResult.preview.eligible) {
 			return businessError(
@@ -232,8 +339,9 @@ export class AfterSalesService {
 			)
 		}
 
-		const refundRequest: RefundRequest = {
-			refundId: `REF-${randomUUID().slice(0, 8).toUpperCase()}`,
+		const refundRequest: RefundRequestDocument = {
+			_id: `REF-${randomUUID().slice(0, 8).toUpperCase()}`,
+			idempotencyId,
 			tenantId: principal.tenantId,
 			orderId,
 			amount: previewResult.preview.refundAmount,
@@ -242,53 +350,90 @@ export class AfterSalesService {
 				? 'manual_review'
 				: 'approved',
 			createdBy: principal.userId,
-			createdAt: new Date().toISOString()
+			createdAt: new Date()
 		}
 
-		refundRequests.set(idempotencyId, refundRequest)
-		appendAudit(principal, 'submit_refund', refundRequest.refundId, {
-			orderId,
-			idempotencyKey
-		})
+		try {
+			await this.database.db
+				.collection<RefundRequestDocument>('refund_requests')
+				.insertOne(refundRequest)
+		} catch (error) {
+			if (error instanceof MongoServerError && error.code === 11000) {
+				const duplicated = await this.getRefundByIdempotencyKey(
+					principal,
+					idempotencyKey
+				)
+				if (duplicated) {
+					return {
+						ok: true,
+						duplicated: true,
+						refundRequest: duplicated
+					}
+				}
+
+				const refundForOrder = await this.getRefundByOrderId(
+					principal,
+					orderId
+				)
+				if (refundForOrder) {
+					return businessError(
+						'ORDER_ALREADY_REFUNDED',
+						`订单 ${orderId} 已存在退款单 ${refundForOrder.refundId}`
+					)
+				}
+			}
+
+			throw error
+		}
+
+		await this.appendAudit(
+			principal,
+			'submit_refund',
+			refundRequest._id,
+			{
+				orderId,
+				idempotencyKey
+			}
+		)
 
 		return {
 			ok: true,
 			duplicated: false,
-			refundRequest: { ...refundRequest }
+			refundRequest: toRefundRequest(refundRequest)
 		}
 	}
 
-	getRefundByIdempotencyKey(
+	async getRefundByIdempotencyKey(
 		principal: Principal,
 		idempotencyKey: string
-	): RefundRequest | null {
-		const refundRequest = refundRequests.get(
-			`${principal.tenantId}:${idempotencyKey}`
-		)
+	): Promise<RefundRequest | null> {
+		const document = await this.database.db
+			.collection<RefundRequestDocument>('refund_requests')
+			.findOne({
+				idempotencyId: `${principal.tenantId}:${idempotencyKey}`
+			})
 
-		return refundRequest ? { ...refundRequest } : null
+		return document ? toRefundRequest(document) : null
 	}
 
-	getRefundByOrderId(
+	async getRefundByOrderId(
 		principal: Principal,
 		orderId: string
-	): RefundRequest | null {
-		for (const refund of refundRequests.values()) {
-			console.log('refund', refund)
-			if (
-				refund.tenantId === principal.tenantId &&
-				refund.orderId === orderId
-			) {
-				return { ...refund }
-			}
-		}
-		return null
+	): Promise<RefundRequest | null> {
+		const document = await this.database.db
+			.collection<RefundRequestDocument>('refund_requests')
+			.findOne({
+				tenantId: principal.tenantId,
+				orderId
+			})
+
+		return document ? toRefundRequest(document) : null
 	}
 
-	startBatchReview(
+	async startBatchReview(
 		principal: Principal,
 		orderIds: string[]
-	): BusinessResult<{ job: Record<string, unknown> }> {
+	): Promise<BusinessResult<{ job: Record<string, unknown> }>> {
 		if (principal.role !== 'finance') {
 			return businessError(
 				'FORBIDDEN',
@@ -296,57 +441,82 @@ export class AfterSalesService {
 			)
 		}
 
-		const invalidOrderId = orderIds.find(
-			(orderId) => !this.getOrder(principal, orderId).ok
-		)
-
-		if (invalidOrderId) {
-			return businessError(
-				'ORDER_NOT_FOUND',
-				`没有找到订单 ${invalidOrderId}`
-			)
+		for (const orderId of orderIds) {
+			const orderResult = await this.getOrder(principal, orderId)
+			if (!orderResult.ok) {
+				return businessError(
+					'ORDER_NOT_FOUND',
+					`没有找到订单 ${orderId}`
+				)
+			}
 		}
 
-		const job: ReviewJob = {
-			jobId: `JOB-${randomUUID().slice(0, 8).toUpperCase()}`,
+		const job: ReviewJobDocument = {
+			_id: `JOB-${randomUUID().slice(0, 8).toUpperCase()}`,
 			tenantId: principal.tenantId,
 			orderIds: [...orderIds],
 			status: 'working',
 			createdBy: principal.userId,
-			createdAt: Date.now(),
+			createdAt: new Date(),
 			cancelledAt: null
 		}
 
-		reviewJobs.set(job.jobId, job)
-		appendAudit(principal, 'start_batch_review', job.jobId, { orderIds })
+		await this.database.db
+			.collection<ReviewJobDocument>('review_jobs')
+			.insertOne(job)
+		await this.appendAudit(
+			principal,
+			'start_batch_review',
+			job._id,
+			{ orderIds }
+		)
 
-		const snapshot = this.getJobSnapshot(principal, job.jobId)
-		if (!snapshot.ok) return snapshot
-		return { ok: true, job: snapshot.job }
+		return this.getJobSnapshot(principal, job._id)
 	}
 
-	getJobSnapshot(
+	async getJobSnapshot(
 		principal: Principal,
 		jobId: string
-	): BusinessResult<{ job: Record<string, unknown> }> {
-		const job = reviewJobs.get(jobId)
-		if (!job || job.tenantId !== principal.tenantId) {
+	): Promise<BusinessResult<{ job: Record<string, unknown> }>> {
+		const job = await this.database.db
+			.collection<ReviewJobDocument>('review_jobs')
+			.findOne({
+				_id: jobId,
+				tenantId: principal.tenantId
+			})
+
+		if (!job) {
 			return businessError('JOB_NOT_FOUND', `没有找到任务 ${jobId}`)
+		}
+
+		const jobView = {
+			jobId: job._id,
+			tenantId: job.tenantId,
+			orderIds: job.orderIds,
+			status: job.status,
+			createdBy: job.createdBy,
+			createdAt: job.createdAt.getTime(),
+			cancelledAt: job.cancelledAt?.getTime() ?? null
 		}
 
 		if (job.cancelledAt) {
 			return {
 				ok: true,
-				job: { ...job, status: 'cancelled', progress: 0, message: '任务已取消' }
+				job: {
+					...jobView,
+					status: 'cancelled',
+					progress: 0,
+					message: '任务已取消'
+				}
 			}
 		}
 
-		const elapsed = Date.now() - job.createdAt
+		const elapsed = Date.now() - job.createdAt.getTime()
 		if (elapsed < 800) {
 			return {
 				ok: true,
 				job: {
-					...job,
+					...jobView,
 					status: 'working',
 					progress: 25,
 					message: '正在读取订单'
@@ -358,7 +528,7 @@ export class AfterSalesService {
 			return {
 				ok: true,
 				job: {
-					...job,
+					...jobView,
 					status: 'working',
 					progress: 70,
 					message: '正在执行退款规则'
@@ -366,22 +536,30 @@ export class AfterSalesService {
 			}
 		}
 
-		const details = job.orderIds.map((orderId) => {
-			const result = this.previewRefund(principal, orderId, '批量审核')
-			return {
-				orderId,
-				eligible: result.ok ? result.preview.eligible : false,
-				manualReview: result.ok ? result.preview.manualReview : false,
-				conclusion: result.ok
-					? result.preview.conclusion
-					: result.error.message
-			}
-		})
+		const details = await Promise.all(
+			job.orderIds.map(async (orderId) => {
+				const result = await this.previewRefund(
+					principal,
+					orderId,
+					'批量审核'
+				)
+				return {
+					orderId,
+					eligible: result.ok ? result.preview.eligible : false,
+					manualReview: result.ok
+						? result.preview.manualReview
+						: false,
+					conclusion: result.ok
+						? result.preview.conclusion
+						: result.error.message
+				}
+			})
+		)
 
 		return {
 			ok: true,
 			job: {
-				...job,
+				...jobView,
 				status: 'completed',
 				progress: 100,
 				message: '批量审核完成',
@@ -393,17 +571,18 @@ export class AfterSalesService {
 					manualReview: details.filter(
 						(item) => item.manualReview
 					).length,
-					rejected: details.filter((item) => !item.eligible).length,
+					rejected: details.filter((item) => !item.eligible)
+						.length,
 					details
 				}
 			}
 		}
 	}
 
-	cancelBatchReview(
+	async cancelBatchReview(
 		principal: Principal,
 		jobId: string
-	): BusinessResult<{ job: Record<string, unknown> }> {
+	): Promise<BusinessResult<{ job: Record<string, unknown> }>> {
 		if (principal.role !== 'finance') {
 			return businessError(
 				'FORBIDDEN',
@@ -411,7 +590,7 @@ export class AfterSalesService {
 			)
 		}
 
-		const snapshot = this.getJobSnapshot(principal, jobId)
+		const snapshot = await this.getJobSnapshot(principal, jobId)
 		if (!snapshot.ok) return snapshot
 		if (snapshot.job.status === 'completed') {
 			return businessError(
@@ -420,17 +599,62 @@ export class AfterSalesService {
 			)
 		}
 
-		const job = reviewJobs.get(jobId)
-		if (!job) {
+		const cancelledAt = new Date()
+		const result = await this.database.db
+			.collection<ReviewJobDocument>('review_jobs')
+			.updateOne(
+				{
+					_id: jobId,
+					tenantId: principal.tenantId
+				},
+				{
+					$set: {
+						status: 'cancelled',
+						cancelledAt
+					}
+				}
+			)
+
+		if (result.matchedCount === 0) {
 			return businessError('JOB_NOT_FOUND', `没有找到任务 ${jobId}`)
 		}
-		job.cancelledAt = Date.now()
-		appendAudit(principal, 'cancel_batch_review', jobId)
+
+		await this.appendAudit(
+			principal,
+			'cancel_batch_review',
+			jobId
+		)
 
 		return this.getJobSnapshot(principal, jobId)
 	}
 
-	getAuditLogs(principal: Principal): AuditLog[] {
-		return auditLogs.filter((item) => item.tenantId === principal.tenantId)
+	async getAuditLogs(principal: Principal): Promise<AuditLog[]> {
+		const documents = await this.database.db
+			.collection<AuditLogDocument>('audit_logs')
+			.find({ tenantId: principal.tenantId })
+			.sort({ createdAt: -1 })
+			.limit(20)
+			.toArray()
+
+		return documents.reverse().map(toAuditLog)
+	}
+
+	private async appendAudit(
+		principal: Principal,
+		action: string,
+		targetId: string,
+		detail: Record<string, unknown> = {}
+	) {
+		await this.database.db
+			.collection<AuditLogDocument>('audit_logs')
+			.insertOne({
+				_id: randomUUID(),
+				tenantId: principal.tenantId,
+				userId: principal.userId,
+				action,
+				targetId,
+				detail,
+				createdAt: new Date()
+			})
 	}
 }

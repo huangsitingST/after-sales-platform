@@ -18,8 +18,9 @@ src/
     ├── main.ts                # Nest 启动入口
     ├── app.module.ts
     └── modules/
-        ├── after-sales/       # 售后业务逻辑和演示数据
+        ├── after-sales/       # 售后业务逻辑
         ├── auth/              # Token 鉴权
+        ├── database/          # MongoDB 连接、集合校验和索引
         ├── model/             # DeepSeek 调用
         └── mcp/
             ├── contracts/     # Client、Server、Host 接口契约
@@ -37,9 +38,15 @@ src/
 ```bash
 nvm use
 npm install
+npm run db:init
 npm run build
 npm run server
 ```
+
+MongoDB 会在应用启动时自动检查集合和索引，也可以单独执行
+`npm run db:init`。该命令只维护数据库结构，不会写入业务数据。默认数据库为
+`enterprise_after_sales`，包含用户、订单、物流、售后规则、退款申请、
+批量审核任务和审计日志七类集合。
 
 默认地址：
 
@@ -80,6 +87,9 @@ DEEPSEEK_API_KEY=你的 DeepSeek API Key
 DEEPSEEK_MODEL=deepseek-v4-flash
 MCP_TOKEN=token-blue-service
 REQUEST_STATE_SECRET=请替换为至少32字节的随机字符串
+MONGODB_URI=mongodb://root:root_password@127.0.0.1:27017/?authSource=admin
+MONGODB_DATABASE=enterprise_after_sales
+MONGODB_SERVER_SELECTION_TIMEOUT_MS=5000
 PORT=3100
 WEB_SANDBOX_PORT=3201
 ```

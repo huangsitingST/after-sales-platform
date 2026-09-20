@@ -30,8 +30,9 @@ export class McpTransportService implements OnModuleDestroy {
 		this.appHtml = readFileSync(appPath, 'utf8')
 
 		this.handler = createMcpHandler(
-			({ authInfo }) => {
-				const principal = this.auth.principalFromAuthInfo(authInfo)
+			async ({ authInfo }) => {
+				const principal =
+					await this.auth.principalFromAuthInfo(authInfo)
 				if (!principal) throw new Error('MCP 请求缺少有效身份')
 
 				return factory.create({
