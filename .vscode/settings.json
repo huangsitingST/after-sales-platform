@@ -9,5 +9,8 @@
   },
   "files.trimTrailingWhitespace": false,
   "files.insertFinalNewline": false,
-  "files.trimFinalNewlines": false
+  "files.trimFinalNewlines": false,
+  "cSpell.words": [
+    "DEEPSEEK"
+  ]
 }

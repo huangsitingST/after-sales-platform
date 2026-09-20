@@ -28,7 +28,6 @@ const {
 	selectIdentity,
 	startNewConversation,
 	submitQuestion,
-	runAppDemo,
 	answerConfirmation
 } = useAfterSalesAgent()
 
@@ -67,8 +66,7 @@ onMounted(() => {
 <template>
 	<div class="shell">
 		<AppSidebar :identity="identity" :connection="connection" :capability-count="capabilityCount"
-			:model-name="modelName" :disabled="interactionDisabled" @update:identity="selectIdentity" @prompt="setPrompt"
-			@app-demo="runAppDemo" />
+			:model-name="modelName" :disabled="interactionDisabled" @update:identity="selectIdentity" @prompt="setPrompt" />
 
 		<main class="workspace">
 			<AppHeader :disabled="interactionDisabled" @reset="startNewConversation()" />

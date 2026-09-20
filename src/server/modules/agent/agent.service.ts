@@ -29,8 +29,6 @@ import type {
 } from './agent.contract.js'
 
 const MAX_TOOL_ROUNDS = 8
-const MAX_APP_DEMO_POLLS = 8
-const APP_DEMO_POLL_INTERVAL_MS = 350
 const SESSION_TTL_MS = 60 * 60 * 1000
 const CONFIRMATION_TTL_MS = 5 * 60 * 1000
 
@@ -49,20 +47,12 @@ interface PendingConfirmation {
 	operation: PendingOperation
 }
 
-type PendingOperation =
-	| {
-			kind: 'chat'
-			nextRound: number
-			remainingToolCalls: ModelToolCall[]
-			toolEventId: string
-	  }
-	| {
-			kind: 'app-demo'
-			stage: 'start' | 'report'
-			orderIds: string[]
-			jobId?: string
-			toolEventId: string
-	  }
+interface PendingOperation {
+	kind: 'chat'
+	nextRound: number
+	remainingToolCalls: ModelToolCall[]
+	toolEventId: string
+}
 
 function createSystemMessages(): ModelMessage[] {
 	return [
@@ -177,56 +167,6 @@ export class AgentService {
 		return this.runModelLoop(session, 1, [])
 	}
 
-	async runAppDemo(sessionId: string): Promise<AgentRunResponse> {
-		this.pruneExpired()
-		const session = this.getSession(sessionId)
-
-		if (this.confirmationBySession.has(sessionId)) {
-			throw new BadRequestException('当前会话还有待确认操作')
-		}
-
-		if (
-			!session.tools.some(
-				(tool) => tool.name === 'start_batch_refund_review'
-			)
-		) {
-			throw new BadRequestException('当前身份没有批量审核权限')
-		}
-
-		const events: AgentEvent[] = []
-		const orderIds = ['A1024', 'A1025', 'A1026']
-		const toolEventId = randomUUID()
-		const invocation = await this.invokeTool({
-			session,
-			name: 'start_batch_refund_review',
-			args: { orderIds },
-			decision: 'prompt',
-			eventId: toolEventId,
-			events
-		})
-
-		if (invocation.kind === 'elicitation') {
-			return this.requireConfirmation(
-				session,
-				events,
-				{
-					kind: 'app-demo',
-					stage: 'start',
-					orderIds,
-					toolEventId
-				},
-				invocation.message
-			)
-		}
-
-		return this.continueAppDemoAfterStart(
-			session,
-			invocation.result,
-			orderIds,
-			events
-		)
-	}
-
 	async resolveConfirmation(
 		confirmationId: string,
 		input: AgentConfirmationInput
@@ -246,11 +186,7 @@ export class AgentService {
 			? 'accept'
 			: 'decline'
 
-		if (pending.operation.kind === 'chat') {
-			return this.resumeChat(session, pending.operation, decision)
-		}
-
-		return this.resumeAppDemo(session, pending.operation, decision)
+		return this.resumeChat(session, pending.operation, decision)
 	}
 
 	private async runModelLoop(
@@ -464,203 +400,6 @@ export class AgentService {
 			app
 		}
 		events.push(event)
-	}
-
-	private async continueAppDemoAfterStart(
-		session: AgentSession,
-		result: McpToolResult,
-		orderIds: string[],
-		events: AgentEvent[]
-	): Promise<AgentRunResponse> {
-		const started = result.structuredContent as
-			| {
-					ok?: boolean
-					job?: { jobId?: string }
-					error?: { message?: string }
-			  }
-			| undefined
-
-		if (!started?.ok || !started.job?.jobId) {
-			events.push({
-				id: randomUUID(),
-				type: 'message',
-				role: 'assistant',
-				text: started?.error?.message ?? '批量审核未启动。'
-			})
-			return { kind: 'completed', events }
-		}
-
-		const jobId = started.job.jobId
-		const statusId = randomUUID()
-		events.push({
-			id: statusId,
-			type: 'status',
-			text: `任务 ${jobId} 正在后台审核……`
-		})
-
-		let snapshot:
-			| {
-					job?: {
-						status?: string
-						progress?: number
-						message?: string
-					}
-			  }
-			| undefined
-
-		for (let attempt = 0; attempt < MAX_APP_DEMO_POLLS; attempt += 1) {
-			await new Promise((resolve) =>
-				setTimeout(resolve, APP_DEMO_POLL_INTERVAL_MS)
-			)
-
-			const statusResponse = await this.mcpHost.callTool({
-				token: session.token,
-				name: 'get_batch_review_status',
-				arguments: { jobId },
-				decision: 'prompt'
-			})
-			if (statusResponse.kind !== 'result') {
-				throw new BadRequestException('批量审核状态查询需要人工确认')
-			}
-
-			snapshot = statusResponse.result
-				.structuredContent as typeof snapshot
-			events.push({
-				id: statusId,
-				type: 'status',
-				text: `任务 ${jobId}：${snapshot?.job?.progress ?? 0}% ${
-					snapshot?.job?.message ?? ''
-				}`
-			})
-
-			if (snapshot?.job?.status === 'completed') break
-		}
-
-		if (snapshot?.job?.status !== 'completed') {
-			events.push({
-				id: statusId,
-				type: 'status',
-				text: `任务 ${jobId} 未在等待时间内完成`,
-				done: true
-			})
-			events.push({
-				id: randomUUID(),
-				type: 'message',
-				role: 'assistant',
-				text: '批量审核等待超时。'
-			})
-			return { kind: 'completed', events }
-		}
-
-		const reportEventId = randomUUID()
-		const reportInvocation = await this.invokeTool({
-			session,
-			name: 'get_batch_review_report',
-			args: { jobId },
-			decision: 'prompt',
-			eventId: reportEventId,
-			events
-		})
-
-		if (reportInvocation.kind === 'elicitation') {
-			return this.requireConfirmation(
-				session,
-				events,
-				{
-					kind: 'app-demo',
-					stage: 'report',
-					orderIds,
-					jobId,
-					toolEventId: reportEventId
-				},
-				reportInvocation.message
-			)
-		}
-
-		events.push({
-			id: statusId,
-			type: 'status',
-			text: `任务 ${jobId} 已完成`,
-			done: true
-		})
-		events.push({
-			id: randomUUID(),
-			type: 'message',
-			role: 'assistant',
-			text: '批量审核已完成，交互式报告已经加载在对话中。'
-		})
-		return { kind: 'completed', events }
-	}
-
-	private async resumeAppDemo(
-		session: AgentSession,
-		operation: Extract<PendingOperation, { kind: 'app-demo' }>,
-		decision: ElicitationDecision
-	): Promise<AgentRunResponse> {
-		const events: AgentEvent[] = []
-
-		if (operation.stage === 'start') {
-			const invocation = await this.invokeTool({
-				session,
-				name: 'start_batch_refund_review',
-				args: { orderIds: operation.orderIds },
-				decision,
-				eventId: operation.toolEventId,
-				events
-			})
-
-			if (invocation.kind === 'elicitation') {
-				return this.requireConfirmation(
-					session,
-					events,
-					operation,
-					invocation.message
-				)
-			}
-
-			if (decision === 'decline') {
-				events.push({
-					id: randomUUID(),
-					type: 'message',
-					role: 'assistant',
-					text: '已取消批量退款审核。'
-				})
-				return { kind: 'completed', events }
-			}
-
-			return this.continueAppDemoAfterStart(
-				session,
-				invocation.result,
-				operation.orderIds,
-				events
-			)
-		}
-
-		const invocation = await this.invokeTool({
-			session,
-			name: 'get_batch_review_report',
-			args: { jobId: operation.jobId ?? '' },
-			decision,
-			eventId: operation.toolEventId,
-			events
-		})
-
-		if (invocation.kind === 'elicitation') {
-			return this.requireConfirmation(
-				session,
-				events,
-				operation,
-				invocation.message
-			)
-		}
-
-		events.push({
-			id: randomUUID(),
-			type: 'message',
-			role: 'assistant',
-			text: '批量审核报告已经加载在对话中。'
-		})
-		return { kind: 'completed', events }
 	}
 
 	private requireConfirmation(

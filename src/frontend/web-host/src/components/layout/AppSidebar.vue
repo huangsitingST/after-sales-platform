@@ -17,7 +17,6 @@ defineProps<{
 
 const emit = defineEmits<{
 	prompt: [text: string]
-	appDemo: []
 }>()
 
 const identities: Array<{ value: IdentityToken; label: string }> = [
@@ -66,9 +65,6 @@ const identities: Array<{ value: IdentityToken; label: string }> = [
 			</button>
 			<button class="prompt-button" :disabled="disabled" @click="emit('prompt', '它现在的物流到哪里了？')">
 				<span>02</span>连续对话与物流
-			</button>
-			<button class="prompt-button app-demo-button" :disabled="disabled" @click="emit('appDemo')">
-				<span>03</span>批量审核报告演示
 			</button>
 		</section>
 
@@ -201,21 +197,6 @@ const identities: Array<{ value: IdentityToken; label: string }> = [
 	width: 30px;
 	color: #7f9a8c;
 	font: 10px ui-monospace, monospace;
-}
-
-.app-demo-button {
-	color: #173d31;
-	background: #d5f43b;
-	font-weight: 800;
-}
-
-.app-demo-button:hover {
-	color: #173d31;
-	background: #e1fa64;
-}
-
-.app-demo-button span {
-	color: #57701b;
 }
 
 .capability-panel {

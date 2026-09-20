@@ -4,7 +4,6 @@ import {
 	createAgentSession,
 	getRuntimeConfig,
 	resolveAgentConfirmation,
-	runAgentAppDemo,
 	sendAgentMessage
 } from '../api/agent-api'
 import type {
@@ -210,38 +209,6 @@ export function useAfterSalesAgent() {
 		}
 	}
 
-	async function runAppDemo() {
-		if (interactionDisabled.value) return
-
-		busy.value = true
-		try {
-			if (identity.value !== 'token-blue-finance') {
-				identity.value = 'token-blue-finance'
-				await openSession()
-				timeline.value = []
-			}
-
-			appendMessage(
-				'user',
-				'批量审核订单 A1024、A1025、A1026，并生成可视化报告。'
-			)
-
-			if (!session.value) {
-				throw new Error('Agent 会话尚未建立')
-			}
-
-			const response = await runAgentAppDemo(session.value.sessionId)
-			applyRunResponse(response)
-		} catch (error) {
-			appendMessage(
-				'assistant',
-				`报告演示失败：${errorMessage(error)}`
-			)
-		} finally {
-			busy.value = false
-		}
-	}
-
 	async function selectIdentity(nextIdentity: IdentityToken) {
 		if (nextIdentity === identity.value) return
 		identity.value = nextIdentity
@@ -278,7 +245,6 @@ export function useAfterSalesAgent() {
 		selectIdentity,
 		startNewConversation,
 		submitQuestion,
-		runAppDemo,
 		answerConfirmation
 	}
 }

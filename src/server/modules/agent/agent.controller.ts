@@ -27,11 +27,6 @@ export class AgentController {
 		return this.agent.sendMessage(sessionId, body)
 	}
 
-	@Post('sessions/:sessionId/app-demo')
-	runAppDemo(@Param('sessionId') sessionId: string) {
-		return this.agent.runAppDemo(sessionId)
-	}
-
 	@Post('confirmations/:confirmationId')
 	resolveConfirmation(
 		@Param('confirmationId') confirmationId: string,

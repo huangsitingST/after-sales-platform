@@ -35,14 +35,6 @@ export function sendAgentMessage(sessionId: string, message: string) {
 	)
 }
 
-/** 运行服务端预设的批量审核报告演示。 */
-export function runAgentAppDemo(sessionId: string) {
-	return postJson<AgentRunResponse>(
-		`/api/agent/sessions/${encodeURIComponent(sessionId)}/app-demo`,
-		{}
-	)
-}
-
 /**
  * 提交用户对高风险操作的确认结果。
  * accepted 为 true 表示执行，为 false 表示取消。
