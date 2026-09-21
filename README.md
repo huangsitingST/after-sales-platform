@@ -12,8 +12,7 @@
 ```text
 src/
 ├── frontend/
-│   ├── web-host/              # Vue 对话、确认弹窗和 MCP App 容器
-│   └── mcp-app/               # Vue 批量退款审核报告
+│   └── web-host/              # Vue 对话和确认弹窗
 └── server/
     ├── main.ts                # Nest 启动入口
     ├── app.module.ts
@@ -53,7 +52,6 @@ MongoDB 会在应用启动时自动检查集合和索引，也可以单独执行
 ```text
 Web Host：http://127.0.0.1:3100
 MCP Server：http://127.0.0.1:3100/mcp
-Sandbox：http://127.0.0.1:3201/sandbox.html
 ```
 
 ## 开发与验证
@@ -76,7 +74,7 @@ npm run typecheck
 npm run verify
 ```
 
-验证覆盖角色权限、多租户隔离、Tools、Resources、Prompts、人工确认、幂等退款、长任务和 MCP App。
+验证覆盖角色权限、多租户隔离、Tools、Resources、Prompts、人工确认、幂等退款和长任务。
 
 ## 环境变量
 
@@ -91,7 +89,6 @@ MONGODB_URI=mongodb://root:root_password@127.0.0.1:27017/?authSource=admin
 MONGODB_DATABASE=enterprise_after_sales
 MONGODB_SERVER_SELECTION_TIMEOUT_MS=5000
 PORT=3100
-WEB_SANDBOX_PORT=3201
 ```
 
 浏览器不会直接获取 `DEEPSEEK_API_KEY`，模型请求统一由 Nest Host 代理。

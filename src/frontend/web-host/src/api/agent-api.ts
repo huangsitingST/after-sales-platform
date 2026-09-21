@@ -6,15 +6,9 @@
 import type {
 	AgentRunResponse,
 	AgentSessionInfo,
-	IdentityToken,
-	RuntimeConfig
+	IdentityToken
 } from '../types/agent'
-import { getJson, postJson } from './http'
-
-/** 获取浏览器运行配置，例如 MCP App Sandbox 的访问地址。 */
-export function getRuntimeConfig() {
-	return getJson<RuntimeConfig>('/api/config')
-}
+import { postJson } from './http'
 
 /**
  * 使用演示身份 Token 创建一个独立的 Agent 会话。

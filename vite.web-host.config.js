@@ -11,12 +11,6 @@ export default defineConfig({
 	plugins: [vue()],
 	build: {
 		outDir: resolve(root, '../../../dist-web-host'),
-		emptyOutDir: true,
-		rollupOptions: {
-			input: {
-				index: resolve(root, 'index.html'),
-				sandbox: resolve(root, 'sandbox.html')
-			}
-		}
+		emptyOutDir: true
 	}
 })

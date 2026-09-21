@@ -182,16 +182,7 @@ console.log('1++++firstRefund', firstRefund)
 // 	'Client 通过 jobId 取回长任务结果'
 // )
 
-// title('6. MCP App')
-// const reportTool = financeTools.find(
-// 	(tool) => tool.name === 'get_batch_review_report'
-// )
-// const appUri = reportTool?._meta?.ui?.resourceUri
-// assert(
-// 	appUri === 'ui://after-sales/batch-review-report.html',
-// 	'报告 Tool 声明了 MCP App Resource URI'
-// )
-
+// title('6. 批量审核报告')
 // const report = await call(
 // 	'token-blue-finance',
 // 	'get_batch_review_report',
@@ -199,16 +190,4 @@ console.log('1++++firstRefund', firstRefund)
 // )
 // assert(report.job.result.total === 3, '报告 Tool 返回结构化审核数据')
 
-// const appResource = await readResource('token-blue-finance', appUri)
-// assert(
-// 	appResource.contents[0]?.mimeType ===
-// 		'text/html;profile=mcp-app',
-// 	'App Resource 使用 MCP Apps MIME Type'
-// )
-// assert(
-// 	appResource.contents[0]?.text?.includes('批量退款审核报告'),
-// 	'App Resource 返回已经构建的 HTML'
-// )
-
 // console.log('\n全部验证通过。')
- 

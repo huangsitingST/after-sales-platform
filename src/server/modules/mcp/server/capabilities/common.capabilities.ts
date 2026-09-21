@@ -253,7 +253,7 @@ export function registerCommonCapabilities(
 						ok: false,
 						error: {
 							code: 'INVALID_REQUEST_STATE',
-							message: '确认信息与当前退款请求不一致'
+							message: '确认信息与当前退款请求start_batch_refund_review不一致'
 						}
 					},
 					true

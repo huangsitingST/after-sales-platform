@@ -1,6 +1,3 @@
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
-
 import { Inject, Injectable, OnModuleDestroy } from '@nestjs/common'
 import { toNodeHandler } from '@modelcontextprotocol/node'
 import { createMcpHandler } from '@modelcontextprotocol/server'
@@ -10,7 +7,6 @@ import { AfterSalesMcpServerFactory } from '../server/after-sales-mcp-server.fac
 
 @Injectable()
 export class McpTransportService implements OnModuleDestroy {
-	private readonly appHtml: string
 	private readonly handler: ReturnType<typeof createMcpHandler>
 	private readonly nodeHandler: (
 		request: any,
@@ -23,22 +19,13 @@ export class McpTransportService implements OnModuleDestroy {
 		@Inject(AfterSalesMcpServerFactory)
 		factory: AfterSalesMcpServerFactory
 	) {
-		const appPath = resolve(
-			process.cwd(),
-			'dist/mcp-app/index.html'
-		)
-		this.appHtml = readFileSync(appPath, 'utf8')
-
 		this.handler = createMcpHandler(
 			async ({ authInfo }) => {
 				const principal =
 					await this.auth.principalFromAuthInfo(authInfo)
 				if (!principal) throw new Error('MCP 请求缺少有效身份')
 
-				return factory.create({
-					principal,
-					appHtml: this.appHtml
-				})
+				return factory.create({ principal })
 			},
 			{
 				legacy: 'reject',

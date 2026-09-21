@@ -18,8 +18,6 @@ import type {
 import { McpHostService } from '../mcp/host/mcp-host.service.js'
 import { DeepSeekService } from '../model/deepseek.service.js'
 import type {
-	AgentAppEvent,
-	AgentAppPayload,
 	AgentConfirmationInput,
 	AgentEvent,
 	AgentMessageInput,
@@ -54,6 +52,7 @@ interface PendingOperation {
 	toolEventId: string
 }
 
+/** 创建 Agent 会话的初始系统消息，约束模型的身份、工具使用和回答方式。 */
 function createSystemMessages(): ModelMessage[] {
 	return [
 		{
@@ -70,6 +69,7 @@ function createSystemMessages(): ModelMessage[] {
 	]
 }
 
+/** 将 MCP 工具结果转换为可写回模型上下文的文本。 */
 function extractToolText(result: McpToolResult) {
 	return (
 		result.content?.find((item) => item.type === 'text')?.text ??
@@ -77,6 +77,7 @@ function extractToolText(result: McpToolResult) {
 	)
 }
 
+/** 解析并校验模型生成的工具调用参数。 */
 function parseToolArguments(value: string) {
 	try {
 		const parsed = JSON.parse(value || '{}') as unknown
@@ -88,13 +89,6 @@ function parseToolArguments(value: string) {
 		const message = error instanceof Error ? error.message : String(error)
 		throw new BadRequestException(`Tool 参数解析失败：${message}`)
 	}
-}
-
-function readUiMeta(meta: Record<string, unknown> | undefined) {
-	const ui = meta?.ui
-	return ui && typeof ui === 'object'
-		? (ui as Record<string, unknown>)
-		: undefined
 }
 
 type InvokeToolResult =
@@ -109,8 +103,11 @@ type InvokeToolResult =
 
 @Injectable()
 export class AgentService {
+	// 会话存储
 	private readonly sessions = new Map<string, AgentSession>()
+	// 确认请求存储
 	private readonly confirmations = new Map<string, PendingConfirmation>()
+	// 会话确认请求映射
 	private readonly confirmationBySession = new Map<string, string>()
 
 	constructor(
@@ -120,6 +117,7 @@ export class AgentService {
 		private readonly deepSeek: DeepSeekService
 	) {}
 
+	/** 创建 Agent 会话：校验 token，加载可用 MCP 工具并初始化消息历史。 */
 	async createSession(token: string): Promise<AgentSessionInfo> {
 		this.pruneExpired()
 
@@ -145,6 +143,7 @@ export class AgentService {
 		}
 	}
 
+	/** 接收用户消息，并启动一次完整的模型与工具交互流程。 */
 	async sendMessage(
 		sessionId: string,
 		input: AgentMessageInput
@@ -167,6 +166,7 @@ export class AgentService {
 		return this.runModelLoop(session, 1, [])
 	}
 
+	/** 处理人工确认结果，并从中断的写操作开始恢复执行。 */
 	async resolveConfirmation(
 		confirmationId: string,
 		input: AgentConfirmationInput
@@ -189,6 +189,7 @@ export class AgentService {
 		return this.resumeChat(session, pending.operation, decision)
 	}
 
+	/** 驱动模型与工具交替执行，直到模型不再请求工具或达到最大轮次。 */
 	private async runModelLoop(
 		session: AgentSession,
 		startRound: number,
@@ -233,6 +234,7 @@ export class AgentService {
 		throw new BadRequestException('Agent 超过了单轮最大 Tool Calling 次数')
 	}
 
+	/** 恢复暂停的聊天流程，先重试待确认的工具调用，再继续模型循环。 */
 	private async resumeChat(
 		session: AgentSession,
 		operation: Extract<PendingOperation, { kind: 'chat' }>,
@@ -241,7 +243,7 @@ export class AgentService {
 		const events: AgentEvent[] = []
 		const confirmation = await this.runToolCalls(
 			session,
-			operation.remainingToolCalls,
+			operation.remainingToolCalls, // 从确认请求中恢复的 Tool Calling 剩下的 Tool Calling
 			operation.nextRound,
 			events,
 			{
@@ -255,6 +257,10 @@ export class AgentService {
 		return this.runModelLoop(session, operation.nextRound, events)
 	}
 
+	/**
+	 * 顺序执行一组工具调用，将结果写回消息上下文。
+	 * 遇到需要人工确认的工具时，保存剩余调用并暂停执行。
+	 */
 	private async runToolCalls(
 		session: AgentSession,
 		toolCalls: ModelToolCall[],
@@ -309,6 +315,7 @@ export class AgentService {
 		return undefined
 	}
 
+	/** 调用单个 MCP 工具并记录执行事件。 */
 	private async invokeTool({
 		session,
 		name,
@@ -358,50 +365,10 @@ export class AgentService {
 		}
 
 		if (visible) events.push(completedEvent)
-		await this.appendAppEvent(session, name, args, result, events)
 		return { kind: 'result', result }
 	}
 
-	private async appendAppEvent(
-		session: AgentSession,
-		toolName: string,
-		args: Record<string, unknown>,
-		result: McpToolResult,
-		events: AgentEvent[]
-	) {
-		const tool = session.tools.find((item) => item.name === toolName)
-		const resourceUri = tool?._meta?.ui?.resourceUri
-		if (!resourceUri) return
-
-		const resource = await this.mcpHost.readResource({
-			token: session.token,
-			uri: resourceUri
-		})
-		const content = resource.contents[0]
-		if (!content) return
-
-		const ui = readUiMeta(content._meta)
-		const app: AgentAppPayload = {
-			resourceUri,
-			html: content.blob
-				? Buffer.from(content.blob, 'base64').toString('utf8')
-				: (content.text ?? ''),
-			toolName,
-			args,
-			result,
-			csp: ui?.csp as Record<string, unknown> | undefined,
-			permissions: ui?.permissions as
-				| Record<string, unknown>
-				| undefined
-		}
-		const event: AgentAppEvent = {
-			id: randomUUID(),
-			type: 'app',
-			app
-		}
-		events.push(event)
-	}
-
+	/** 保存待确认操作并返回 confirmation_required，暂停当前 Agent 流程。 */
 	private requireConfirmation(
 		session: AgentSession,
 		events: AgentEvent[],
@@ -427,12 +394,14 @@ export class AgentService {
 		}
 	}
 
+	/** 按 ID 获取会话；会话不存在或已过期时抛出异常。 */
 	private getSession(sessionId: string) {
 		const session = this.sessions.get(sessionId)
 		if (!session) throw new NotFoundException('Agent 会话不存在或已过期')
 		return session
 	}
 
+	/** 将 MCP 工具描述转换为模型可识别的 function tool 定义。 */
 	private toModelTools(tools: McpToolDescriptor[]): ModelTool[] {
 		return tools.map((tool) => ({
 			type: 'function',
@@ -444,6 +413,7 @@ export class AgentService {
 		}))
 	}
 
+	/** 清理过期会话和待确认记录，防止内存中的状态无限增长。 */
 	private pruneExpired() {
 		const now = Date.now()
 

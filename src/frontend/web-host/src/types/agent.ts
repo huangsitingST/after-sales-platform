@@ -1,10 +1,6 @@
 export type IdentityToken = "token-blue-service" | "token-blue-finance";
 // | 'token-star-service'
 
-export interface RuntimeConfig {
-	sandboxUrl: string
-}
-
 export interface AgentSessionInfo {
 	sessionId: string
 	model: string
@@ -18,16 +14,6 @@ export interface ToolResult {
 		text?: string
 	}>
 	structuredContent?: unknown
-}
-
-export interface AgentAppPayload {
-	resourceUri: string
-	html: string
-	toolName: string
-	args: Record<string, unknown>
-	result: ToolResult
-	csp?: Record<string, unknown>
-	permissions?: Record<string, unknown>
 }
 
 export type AgentEvent =
@@ -52,12 +38,6 @@ export type AgentEvent =
 			result?: ToolResult
 			error?: string
 	  }
-	| {
-			id: string
-			type: 'app'
-			app: AgentAppPayload
-	  }
-
 export type AgentRunResponse =
 	| {
 			kind: 'completed'

@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import {
-	computed,
 	nextTick,
 	onMounted,
 	shallowRef,
@@ -17,7 +16,6 @@ import { useAfterSalesAgent } from './composables/useAfterSalesAgent'
 
 const {
 	identity,
-	config,
 	timeline,
 	connection,
 	confirmation,
@@ -35,7 +33,6 @@ const draft = shallowRef('')
 const composer = useTemplateRef<InstanceType<typeof MessageComposer>>(
 	'composer'
 )
-const sandboxUrl = computed(() => config.value?.sandboxUrl ?? '')
 
 function setPrompt(text: string) {
 	draft.value = text
@@ -70,7 +67,7 @@ onMounted(() => {
 
 		<main class="workspace">
 			<AppHeader :disabled="interactionDisabled" @reset="startNewConversation()" />
-			<ChatTimeline :items="timeline" :sandbox-url="sandboxUrl" />
+			<ChatTimeline :items="timeline" />
 			<MessageComposer ref="composer" v-model="draft" :disabled="interactionDisabled" @submit="submit" />
 		</main>
 	</div>

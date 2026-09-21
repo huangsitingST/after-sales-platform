@@ -1,9 +1,4 @@
 import {
-	RESOURCE_MIME_TYPE,
-	registerAppResource,
-	registerAppTool
-} from '@modelcontextprotocol/ext-apps/server'
-import {
 	acceptedContent,
 	inputRequired,
 	inputResponse
@@ -13,7 +8,6 @@ import * as z from 'zod/v4'
 import type { AfterSalesService } from '../../../after-sales/after-sales.service.js'
 import type { Principal } from '../../contracts/shared.types.js'
 import { requestStateCodec } from '../request-state.js'
-import { AFTER_SALES_APP_URI } from '../server.constants.js'
 import { businessResult, cancelledResult, jsonResult } from '../tool-results.js'
 
 const confirmationResponseSchema = z.object({
@@ -23,7 +17,6 @@ const confirmationResponseSchema = z.object({
 export function registerFinanceCapabilities(
 	server: any,
 	principal: Principal,
-	appHtml: string,
 	afterSales: AfterSalesService
 ) {
 	server.registerTool(
@@ -148,36 +141,17 @@ export function registerFinanceCapabilities(
 		})
 	)
 
-	registerAppTool(
-		server,
+	server.registerTool(
 		'get_batch_review_report',
 		{
 			title: '查看批量审核报告',
-			description: '读取已完成的批量审核结果，并使用 MCP App 展示报告',
+			description: '读取已完成的批量审核结果',
 			inputSchema: z.object({ jobId: z.string() }),
-			annotations: { readOnlyHint: true, idempotentHint: true },
-			_meta: { ui: { resourceUri: AFTER_SALES_APP_URI } }
+			annotations: { readOnlyHint: true, idempotentHint: true }
 		},
 		async ({ jobId }: { jobId: string }) =>
 			businessResult(
 				await afterSales.getJobSnapshot(principal, jobId)
 			) as never
-	)
-
-	registerAppResource(
-		server,
-		'批量退款审核报告',
-		AFTER_SALES_APP_URI,
-		{ description: '以可视化界面展示批量退款审核结果' },
-		async () => ({
-			contents: [
-				{
-					uri: AFTER_SALES_APP_URI,
-					mimeType: RESOURCE_MIME_TYPE,
-					text: appHtml,
-					_meta: { ui: { prefersBorder: false } }
-				}
-			]
-		})
 	)
 }

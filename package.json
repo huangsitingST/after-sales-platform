@@ -7,9 +7,8 @@
 		"node": ">=20.19"
 	},
 	"scripts": {
-		"build": "npm run build:web-host && npm run build:mcp-app && npm run build:server",
+		"build": "npm run build:web-host && npm run build:server",
 		"build:web-host": "vite build --config vite.web-host.config.js",
-		"build:mcp-app": "vite build --config vite.mcp-app.config.js",
 		"build:server": "tsc -p tsconfig.server.json",
 		"db:init": "npm run preflight && tsx --tsconfig tsconfig.server.json src/server/modules/database/init.ts",
 		"preflight": "node scripts/check-node.mjs",
@@ -20,7 +19,6 @@
 	},
 	"dependencies": {
 		"@modelcontextprotocol/client": "2.0.0-beta.4",
-		"@modelcontextprotocol/ext-apps": "1.7.4",
 		"@modelcontextprotocol/node": "2.0.0-beta.4",
 		"@modelcontextprotocol/server": "2.0.0-beta.4",
 		"@nestjs/common": "11.2.5",
@@ -41,7 +39,6 @@
 		"tsx": "4.23.13",
 		"typescript": "5.9.3",
 		"vite": "7.3.6",
-		"vite-plugin-singlefile": "2.3.0",
 		"vue-tsc": "3.3.11"
 	}
 }

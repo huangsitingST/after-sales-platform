@@ -30,11 +30,7 @@ export interface McpToolDescriptor {
 	name: string
 	description?: string
 	inputSchema?: Record<string, unknown>
-	_meta?: {
-		ui?: {
-			resourceUri?: string
-		}
-	}
+	_meta?: Record<string, unknown>
 	[key: string]: unknown
 }
 

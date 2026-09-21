@@ -17,7 +17,7 @@ export class AfterSalesMcpServerFactory implements McpServerFactory {
 		private readonly afterSales: AfterSalesService
 	) {}
 
-	create({ principal, appHtml }: McpServerContext) {
+	create({ principal }: McpServerContext) {
 		const server = new McpServer(
 			{
 				name: 'enterprise-after-sales-mcp',
@@ -41,7 +41,6 @@ export class AfterSalesMcpServerFactory implements McpServerFactory {
 			registerFinanceCapabilities(
 				server,
 				principal,
-				appHtml,
 				this.afterSales
 			)
 		}

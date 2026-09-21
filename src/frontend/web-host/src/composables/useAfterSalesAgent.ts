@@ -2,7 +2,6 @@ import { computed, reactive, shallowRef } from 'vue'
 
 import {
 	createAgentSession,
-	getRuntimeConfig,
 	resolveAgentConfirmation,
 	sendAgentMessage
 } from '../api/agent-api'
@@ -11,8 +10,7 @@ import type {
 	AgentRunResponse,
 	AgentSessionInfo,
 	ConnectionState,
-	IdentityToken,
-	RuntimeConfig
+	IdentityToken
 } from '../types/agent'
 
 const identityLabels: Record<IdentityToken, string> = {
@@ -31,7 +29,6 @@ function errorMessage(error: unknown) {
 
 export function useAfterSalesAgent() {
 	const identity = shallowRef<IdentityToken>('token-blue-service')
-	const config = shallowRef<RuntimeConfig>()
 	const session = shallowRef<AgentSessionInfo>()
 	const timeline = shallowRef<AgentEvent[]>([])
 	const busy = shallowRef(false)
@@ -218,7 +215,6 @@ export function useAfterSalesAgent() {
 	async function initialize() {
 		busy.value = true
 		try {
-			config.value = await getRuntimeConfig()
 			await openSession()
 			timeline.value = []
 			appendMessage(
@@ -234,7 +230,6 @@ export function useAfterSalesAgent() {
 
 	return {
 		identity,
-		config,
 		timeline,
 		connection,
 		confirmation,

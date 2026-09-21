@@ -19,17 +19,3 @@ export async function postJson<T>(
 
 	return data as T
 }
-
-export async function getJson<T>(url: string): Promise<T> {
-	const response = await fetch(url)
-	const data = (await response.json()) as {
-		error?: string
-		message?: string
-	}
-
-	if (!response.ok) {
-		throw new Error(data.error ?? data.message ?? `请求失败：${response.status}`)
-	}
-
-	return data as T
-}

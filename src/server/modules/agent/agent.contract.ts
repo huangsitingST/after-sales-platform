@@ -1,15 +1,5 @@
 import type { McpToolResult } from '../mcp/contracts/shared.types.js'
 
-export interface AgentAppPayload {
-	resourceUri: string
-	html: string
-	toolName: string
-	args: Record<string, unknown>
-	result: McpToolResult
-	csp?: Record<string, unknown>
-	permissions?: Record<string, unknown>
-}
-
 export interface AgentMessageEvent {
 	id: string
 	type: 'message'
@@ -34,17 +24,10 @@ export interface AgentToolEvent {
 	error?: string
 }
 
-export interface AgentAppEvent {
-	id: string
-	type: 'app'
-	app: AgentAppPayload
-}
-
 export type AgentEvent =
 	| AgentMessageEvent
 	| AgentStatusEvent
 	| AgentToolEvent
-	| AgentAppEvent
 
 export type AgentRunResponse =
 	| {

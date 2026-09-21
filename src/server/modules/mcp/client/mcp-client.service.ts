@@ -66,12 +66,7 @@ export class McpClientService implements McpClientProvider {
 			{
 				versionNegotiation: { mode: 'auto' },
 				capabilities: {
-					elicitation: { form: {} },
-					extensions: {
-						'io.modelcontextprotocol/ui': {
-							mimeTypes: ['text/html;profile=mcp-app']
-						}
-					}
+					elicitation: { form: {} }
 				}
 			}
 		)

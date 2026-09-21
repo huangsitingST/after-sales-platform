@@ -2,13 +2,11 @@
 import { nextTick, useTemplateRef, watch } from 'vue'
 
 import type { AgentEvent } from '../../types/agent'
-import McpAppFrame from '../mcp/McpAppFrame.vue'
 import ChatMessage from './ChatMessage.vue'
 import ToolCallCard from './ToolCallCard.vue'
 
 const props = defineProps<{
 	items: AgentEvent[]
-	sandboxUrl: string
 }>()
 
 const timeline = useTemplateRef<HTMLElement>('timeline')
@@ -36,7 +34,7 @@ watch(
 			<div>
 				<h2>你好，我是企业售后 Agent</h2>
 				<p>
-					可以查订单、查物流、预审退款，财务身份还可以生成可视化的批量审核报告。
+					可以查订单、查物流、预审退款，财务身份还可以查看批量审核报告。
 				</p>
 			</div>
 		</div>
@@ -61,11 +59,6 @@ watch(
 				v-else-if="item.type === 'tool'"
 				:item="item"
 			/>
-				<McpAppFrame
-					v-else
-					:app="item.app"
-					:sandbox-url="sandboxUrl"
-				/>
 		</template>
 	</section>
 </template>

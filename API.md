@@ -13,7 +13,6 @@
 | --- | --- |
 | Web Host 地址 | `http://127.0.0.1:3100` |
 | MCP Server 地址 | `http://127.0.0.1:3100/mcp` |
-| Sandbox 地址 | `http://127.0.0.1:3201/sandbox.html` |
 | HTTP JSON 请求内容类型 | `application/json` |
 | MCP 身份认证 | `Authorization: Bearer <token>` |
 | MongoDB 数据库 | `.env` 中的 `MONGODB_DATABASE`，当前为 `enterprise_after_sales` |
@@ -29,7 +28,6 @@ HTTP API 的根模块定义在
 | 方法 | 路径 | 说明 | 鉴权 | 源码 |
 | --- | --- | --- | --- | --- |
 | `GET` | `/health` | 检查服务状态 | 无 | [health.controller.ts](src/server/modules/health/health.controller.ts#L3) |
-| `GET` | `/api/config` | 获取浏览器运行配置 | 无 | [runtime.controller.ts](src/server/runtime.controller.ts#L3) |
 | `POST` | `/api/agent/sessions` | 创建 Agent 会话 | Token 放在 JSON 请求体中 | [agent.controller.ts](src/server/modules/agent/agent.controller.ts#L17) |
 | `POST` | `/api/agent/sessions/:sessionId/messages` | 向会话发送消息 | 使用 `sessionId` | [agent.controller.ts](src/server/modules/agent/agent.controller.ts#L22) |
 | `POST` | `/api/agent/confirmations/:confirmationId` | 接受或拒绝高风险操作 | 使用 `confirmationId` | [agent.controller.ts](src/server/modules/agent/agent.controller.ts#L31) |
@@ -62,33 +60,7 @@ GET /health
 
 - Controller：[src/server/modules/health/health.controller.ts](src/server/modules/health/health.controller.ts#L5)
 
-### 3.2 获取运行时配置
-
-**接口**
-
-```http
-GET /api/config
-```
-
-**请求参数**
-
-无。
-
-**响应示例**
-
-```json
-{
-  "sandboxUrl": "http://127.0.0.1:3201/sandbox.html"
-}
-```
-
-Sandbox 端口从 `WEB_SANDBOX_PORT` 环境变量读取。
-
-**源码**
-
-- Controller：[src/server/runtime.controller.ts](src/server/runtime.controller.ts#L4)
-
-### 3.3 创建 Agent 会话
+### 3.2 创建 Agent 会话
 
 **接口**
 
@@ -134,7 +106,7 @@ Content-Type: application/json
 - Token 校验：[src/server/modules/auth/auth.service.ts](src/server/modules/auth/auth.service.ts#L17)
 - 请求类型：[src/server/modules/agent/agent.contract.ts](src/server/modules/agent/agent.contract.ts#L61)
 
-### 3.4 发送 Agent 消息
+### 3.3 发送 Agent 消息
 
 **接口**
 
@@ -204,7 +176,7 @@ Content-Type: application/json
 - 请求类型：[src/server/modules/agent/agent.contract.ts](src/server/modules/agent/agent.contract.ts#L71)
 - 响应类型：[src/server/modules/agent/agent.contract.ts](src/server/modules/agent/agent.contract.ts#L49)
 
-### 3.5 处理人工确认
+### 3.4 处理人工确认
 
 **接口**
 
@@ -247,7 +219,7 @@ Content-Type: application/json
 - 确认处理：[src/server/modules/agent/agent.service.ts](src/server/modules/agent/agent.service.ts#L230)
 - 请求类型：[src/server/modules/agent/agent.contract.ts](src/server/modules/agent/agent.contract.ts#L75)
 
-### 3.6 MCP HTTP 入口
+### 3.5 MCP HTTP 入口
 
 **接口**
 
@@ -319,7 +291,7 @@ Tool 注册入口：
 | `start_batch_refund_review` | 财务 | 是，需要确认 | [finance.capabilities.ts](src/server/modules/mcp/server/capabilities/finance.capabilities.ts#L29) |
 | `get_batch_review_status` | 财务 | 否 | [finance.capabilities.ts](src/server/modules/mcp/server/capabilities/finance.capabilities.ts#L100) |
 | `cancel_batch_review` | 财务 | 是 | [finance.capabilities.ts](src/server/modules/mcp/server/capabilities/finance.capabilities.ts#L114) |
-| `get_batch_review_report` | 财务 | 否 | [finance.capabilities.ts](src/server/modules/mcp/server/capabilities/finance.capabilities.ts#L151) |
+| `get_batch_review_report` | 财务 | 否 | [finance.capabilities.ts](src/server/modules/mcp/server/capabilities/finance.capabilities.ts#L144) |
 
 ### 4.2 查询订单详情
 
@@ -673,16 +645,11 @@ Tool: get_batch_review_report
 }
 ```
 
-返回批量审核任务快照，并通过 `_meta.ui.resourceUri` 关联 MCP App：
-
-```text
-ui://after-sales/batch-review-report.html
-```
+返回批量审核任务快照，包括状态、进度、汇总数量和订单明细。
 
 源码：
 
-- [finance.capabilities.ts](src/server/modules/mcp/server/capabilities/finance.capabilities.ts#L151)
-- [server.constants.ts](src/server/modules/mcp/server/server.constants.ts#L1)
+- [finance.capabilities.ts](src/server/modules/mcp/server/capabilities/finance.capabilities.ts#L144)
 
 ## 5. MCP Resources
 
@@ -690,7 +657,6 @@ ui://after-sales/batch-review-report.html
 | --- | --- | --- | --- |
 | `after-sales://policies/refund-policy` | `text/markdown` | 当前租户退款规则 | [common.capabilities.ts](src/server/modules/mcp/server/capabilities/common.capabilities.ts#L271) |
 | `after-sales://audit/recent` | `application/json` | 当前租户最近 20 条审计记录 | [finance.capabilities.ts](src/server/modules/mcp/server/capabilities/finance.capabilities.ts#L128) |
-| `ui://after-sales/batch-review-report.html` | `text/html;profile=mcp-app` | 批量审核报告 MCP App | [finance.capabilities.ts](src/server/modules/mcp/server/capabilities/finance.capabilities.ts#L167) |
 
 ### 5.1 退款规则 Resource
 
@@ -714,16 +680,6 @@ after-sales://audit/recent
 
 返回当前租户最近的退款、批量审核和取消操作记录。数据来自 MongoDB
 `audit_logs` 集合。
-
-### 5.3 MCP App Resource
-
-**URI**
-
-```text
-ui://after-sales/batch-review-report.html
-```
-
-返回构建后的 HTML 页面，用于在 MCP App Sandbox 中展示批量审核报告。
 
 ## 6. MCP Prompt
 
@@ -752,7 +708,7 @@ Prompt: handle_after_sales_case
 
 ### 7.1 AgentRunResponse
 
-源码：[agent.contract.ts](src/server/modules/agent/agent.contract.ts#L49)
+源码：[agent.contract.ts](src/server/modules/agent/agent.contract.ts#L32)
 
 ```ts
 type AgentRunResponse =
@@ -770,16 +726,15 @@ type AgentRunResponse =
 
 ### 7.2 AgentEvent
 
-源码：[agent.contract.ts](src/server/modules/agent/agent.contract.ts#L13)
+源码：[agent.contract.ts](src/server/modules/agent/agent.contract.ts#L27)
 
-支持四种事件：
+支持三种事件：
 
 | `type` | 说明 |
 | --- | --- |
 | `message` | Agent 或用户文本消息 |
 | `status` | 长任务进度信息 |
 | `tool` | Tool 调用状态和结果 |
-| `app` | MCP App 的 HTML、资源 URI 和权限信息 |
 
 ### 7.3 MCP Tool Result
 
@@ -819,7 +774,6 @@ interface McpToolResult {
 
 | 前端函数 | HTTP 接口 | 后端 Controller |
 | --- | --- | --- |
-| `getRuntimeConfig()` | `GET /api/config` | [runtime.controller.ts](src/server/runtime.controller.ts#L5) |
 | `createAgentSession()` | `POST /api/agent/sessions` | [agent.controller.ts](src/server/modules/agent/agent.controller.ts#L17) |
 | `sendAgentMessage()` | `POST /api/agent/sessions/:sessionId/messages` | [agent.controller.ts](src/server/modules/agent/agent.controller.ts#L22) |
 | `resolveAgentConfirmation()` | `POST /api/agent/confirmations/:confirmationId` | [agent.controller.ts](src/server/modules/agent/agent.controller.ts#L31) |
